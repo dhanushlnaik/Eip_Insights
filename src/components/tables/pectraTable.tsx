@@ -1,8 +1,18 @@
 'use client';
 import { motion } from 'motion/react';
 import Link from 'next/link';
-import React from 'react';
-import { CSmartTable } from '@coreui/react-pro';
+import React, { useMemo, useState } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnFiltersState,
+} from '@tanstack/react-table';
 
 interface EIP {
   eip: string;
@@ -22,6 +32,7 @@ const PectraData = [
       'Alex Vlasov (@shamatar), Kelly Olson (@ineffectualproperty), Alex Stokes (@ralexstokes), Antonio Sanso (@asanso)',
     link: 'https://eipsinsight.com/eips/eip-2537',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip2537-bls12-precompile-discussion-thread/4187',
@@ -33,6 +44,7 @@ const PectraData = [
       'Vitalik Buterin (@vbuterin), Tomasz Stanczak (@tkstanczak), Guillaume Ballet (@gballet), Gajinder Singh (@g11tech), Tanishq Jasoria (@tanishqjasoria), Ignacio Hagopian (@jsign), Jochem Brouwer (@jochem-brouwer)',
     link: 'https://eipsinsight.com/eips/eip-2935',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-2935-save-historical-block-hashes-in-state/4565',
@@ -44,6 +56,7 @@ const PectraData = [
       'Mikhail Kalinin (@mkalinin), Danny Ryan (@djrtwo), Peter Davies (@petertdavies)',
     link: 'https://eipsinsight.com/eips/eip-6110',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-6110-supply-validator-deposits-on-chain/12072',
@@ -55,6 +68,7 @@ const PectraData = [
       'Danny Ryan (@djrtwo), Mikhail Kalinin (@mkalinin), Ansgar Dietrichs (@adietrichs), Hsiao-Wei Wang (@hwwhww), lightclient (@lightclient)',
     link: 'https://eipsinsight.com/eips/eip-7002',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7002-execution-layer-triggerable-exits/14195',
@@ -66,6 +80,7 @@ const PectraData = [
       'mike (@michaelneuder), Francesco (@fradamt), dapplion (@dapplion), Mikhail (@mkalinin), Aditya (@adiasg), Justin (@justindrake), lightclient (@lightclient)',
     link: 'https://eipsinsight.com/eips/eip-2251',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7251-increase-the-max-effective-balance/15982',
@@ -76,6 +91,7 @@ const PectraData = [
     author: 'dapplion (@dapplion)',
     link: 'https://eipsinsight.com/eips/eip-7549',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7549-move-committee-index-outside-attestation/16390',
@@ -87,6 +103,7 @@ const PectraData = [
     author: 'lightclient (@lightclient)',
     link: 'https://eipsinsight.com/eips/eip-7685',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7685-general-purpose-execution-layer-requests/19668',
@@ -98,6 +115,7 @@ const PectraData = [
       'Vitalik Buterin (@vbuterin), Sam Wilson (@SamWilsn), Ansgar Dietrichs (@adietrichs), Matt Garnett (@lightclient)',
     link: 'https://eipsinsight.com/eips/eip-7702',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-set-eoa-account-code-for-one-transaction/19923',
@@ -109,6 +127,7 @@ const PectraData = [
       'Parithosh Jayanthi (@parithosh), Toni Wahrstätter (@nerolation), Sam Calder-Mason (@samcm), Andrew Davis (@savid), Ansgar Dietrichs (@adietrichs)',
     link: 'https://eipsinsight.com/eips/eip-7691',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7691-blob-throughput-increase/19694',
@@ -119,6 +138,7 @@ const PectraData = [
     author: 'Toni Wahrstätter (@nerolation), Vitalik Buterin (@vbuterin)',
     link: 'https://eipsinsight.com/eips/eip-7623',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/eip-7623-increase-calldata-cost/18647',
@@ -129,6 +149,7 @@ const PectraData = [
     author: 'lightclient (@lightclient)',
     link: 'https://eipsinsight.com/eips/eip-7840',
     type: 'Standards Track',
+    status: 'Draft',
     category: 'Core',
     discussion:
       'https://ethereum-magicians.org/t/add-blob-schedule-to-execution-client-configuration-files/22182',
@@ -216,168 +237,217 @@ const PectraData = [
   // },
 ];
 
+
 const PectraTable = () => {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+
   const convertAndDownloadCSV = () => {
     if (PectraData && PectraData.length > 0) {
-      const headers = Object.keys(PectraData[0]).join(',') + '\n';
+      const headers = Object.keys(PectraData[0]).join(",") + "\n";
       const csvRows = PectraData.map((item) => {
-        const values = Object.values(item).map((value) => {
-          if (typeof value === 'string' && value.includes(',')) {
-            return `"${value}"`;
-          }
-          return value;
-        });
-        return values.join(',');
+        const values = Object.values(item).map((value) =>
+          typeof value === "string" && value.includes(",")
+            ? `"${value}"`
+            : value
+        );
+        return values.join(",");
       });
-
-      const csvContent = headers + csvRows.join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const csvContent = headers + csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `Pectra.csv`;
-      document.body.appendChild(a);
+      a.download = "Pectra.csv";
       a.click();
       window.URL.revokeObjectURL(url);
     }
   };
 
   const factorAuthor = (data: string) => {
-    const list = data.split(',');
-    for (let i = 0; i < list.length; i++) {
-      list[i] = list[i].split(' ').join(' ');
-    }
-    if (list[list.length - 1][list[list.length - 1].length - 1] === 'al.') {
-      list.pop();
-    }
+    const list = data.split(",");
+    if (list[list.length - 1]?.trim() === "al.") list.pop();
     return list;
   };
 
-  const filteredData = PectraData; // Filter as per your need here
+  const columnHelper = createColumnHelper<EIP>();
+  const columns = useMemo(() => [
+    columnHelper.accessor("eip", {
+      header: "EIP",
+      cell: (info) => (
+        <Link href={`/eips/eip-${info.getValue()}`}>
+          <span className="bg-purple-700/30 border border-purple-500/30 px-2 py-1 rounded-md shadow-md hover:scale-105 transition">
+            {info.getValue()}
+          </span>
+        </Link>
+      ),
+    }),
+    columnHelper.accessor("title", {
+      header: "Title",
+      cell: (info) => (
+        <Link
+          href={`/eips/eip-${info.row.original.eip}`}
+          className="hover:text-fuchsia-200 transition"
+        >
+          {info.getValue()}
+        </Link>
+      ),
+    }),
+    columnHelper.accessor("author", {
+      header: "Author",
+      cell: (info) => (
+        <div className="flex flex-wrap gap-1">
+          {factorAuthor(info.getValue()).map((item, i) => {
+            const raw = item[item.length - 1];
+            const t = raw.substring(1, raw.length - 1);
+            const isEmail = raw.endsWith(">");
+            return (
+              <Link
+                key={i}
+                href={isEmail ? `mailto:${t}` : `https://github.com/${t}`}
+                target="_blank"
+                className="underline underline-offset-2 hover:text-pink-400"
+              >
+                {item}
+              </Link>
+            );
+          })}
+        </div>
+      ),
+    }),
+    columnHelper.accessor("type", {
+      header: "Type",
+      cell: (info) => <span className="text-purple-300">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor("category", {
+      header: "Category",
+      cell: (info) => <span className="text-teal-300">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor("discussion", {
+      header: "Discussion",
+      cell: (info) => (
+        <button
+          onClick={() => window.open(info.getValue(), "_blank")}
+          className="bg-gradient-to-br from-purple-600 to-pink-500 hover:brightness-110 text-white px-4 py-2 rounded-md text-sm shadow-md"
+        >
+          View
+        </button>
+      ),
+    }),
+  ], [columnHelper]);
+
+  const table = useReactTable({
+    data: PectraData,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -30, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 80, damping: 12 }}
-      className="flex flex-col p-6 max-w-7xl mx-auto mt-6 mb-10 
-    rounded-2xl shadow-2xl border border-purple-300/50 
-    bg-white/30 dark:bg-gray-900/30 
-    backdrop-blur-xl backdrop-saturate-150 text-gray-900 dark:text-white z-40"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 100, damping: 15 }}
+      className="p-6 mt-6 mb-10 max-w-7xl mx-auto rounded-2xl shadow-2xl border border-purple-200/40 bg-gradient-to-br from-gray-900/50 to-gray-800/60 backdrop-blur-2xl text-white"
     >
-      <div className="flex items-center justify-between w-full mb-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {`Pectra - [${filteredData.length}]`}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">
+          Pectra - [{PectraData.length}]
         </h2>
         <button
           onClick={convertAndDownloadCSV}
-          className="shadow-[0_4px_14px_0_rgb(107,70,193,39%)] hover:shadow-[0_6px_20px_rgba(107,70,193,23%)] hover:bg-[rgba(107,70,193,0.9)] px-6 py-1 text-xs bg-[#6b46c1] rounded-md text-white font-light transition duration-200 ease-linear"
+          className="bg-purple-600 hover:bg-purple-700 text-white text-sm px-4 py-2 rounded-md shadow-md"
         >
-          Download Reports
+          Download Report
         </button>
       </div>
-      <CSmartTable
-        items={filteredData.sort(
-          (a, b) => parseInt(a['eip']) - parseInt(b['eip'])
-        )}
-        activePage={1}
-        clickableRows
-        columnFilter
-        columnSorter
-        itemsPerPage={5}
-        pagination
-        tableProps={{
-          hover: true,
-          responsive: true,
-          className: 'text-white text-sm',
-          style: {
-            backgroundColor: 'rgba(255, 255, 255, 0.06)',
-            borderRadius: '1rem',
-            backdropFilter: 'blur(12px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-            border: '1px solid rgba(180, 100, 255, 0.2)',
-            boxShadow: '0 4px 30px rgba(128, 90, 213, 0.3)',
-          },
-        }}
-        columns={[
-          'eip',
-          'title',
-          'author',
-          'type',
-          'category',
-          'discussion',
-        ].map((key) => ({
-          key,
-          label: key.charAt(0).toUpperCase() + key.slice(1),
-          _style: {
-            textAlign: 'center',
-          },
-        }))}
-        scopedColumns={{
-          eip: (item: EIP) => (
-            <td className="text-center px-3 py-2 bg-white/5 backdrop-blur-sm rounded-md font-semibold text-purple-200">
-              <Link href={`/eips/eip-${item.eip}`}>
-                <span className="bg-purple-700/30 border border-purple-500/30 px-2 py-1 rounded-md shadow-md hover:scale-105 transition">
-                  {item.eip}
-                </span>
-              </Link>
-            </td>
-          ),
-          title: (item: EIP) => (
-            <td className="px-3 py-2 bg-white/5 backdrop-blur-sm text-white">
-              <Link
-                href={`/eips/eip-${item.eip}`}
-                className="hover:text-purple-200 transition"
-              >
-                {item.title}
-              </Link>
-            </td>
-          ),
-          author: (it: EIP) => (
-            <td className="px-3 py-2 bg-white/5 backdrop-blur-sm text-purple-100">
-              <div className="flex flex-wrap gap-1">
-                {factorAuthor(it.author).map((item: string, index: number) => {
-                  const raw = item[item.length - 1];
-                  const t = raw.substring(1, raw.length - 1);
-                  const isEmail = raw.endsWith('>');
-                  return (
-                    <Link
-                      key={index}
-                      href={isEmail ? `mailto:${t}` : `https://github.com/${t}`}
-                      target="_blank"
-                      className="underline underline-offset-2 hover:text-purple-300"
-                    >
-                      {item}
-                    </Link>
-                  );
-                })}
-              </div>
-            </td>
-          ),
-          type: (item: EIP) => (
-            <td className="text-center px-3 py-2 bg-white/5 backdrop-blur-sm text-purple-200">
-              {item.type}
-            </td>
-          ),
-          category: (item: EIP) => (
-            <td className="text-center px-3 py-2 bg-white/5 backdrop-blur-sm text-purple-200">
-              {item.category}
-            </td>
-          ),
-          discussion: (item: EIP) => (
-            <td className="text-center px-3 py-2 bg-white/5 backdrop-blur-sm">
-              <button
-                onClick={() => window.open(item.discussion, '_blank')}
-                className="bg-gradient-to-r from-purple-600 via-purple-500 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-4 py-2 rounded-md shadow-lg transition-all duration-200 text-sm"
-              >
-                View
-              </button>
-            </td>
-          ),
-        }}
-      />
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="text-purple-100">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <th key={header.id} className="px-4 py-2 bg-purple-800/50">
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.column.getCanFilter() && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          placeholder="Filter..."
+                          value={(header.column.getFilterValue() ?? "") as string}
+                          onChange={(e) => header.column.setFilterValue(e.target.value)}
+                          className="bg-white/10 border border-purple-300/20 rounded px-2 py-1 mt-1 text-white text-xs w-full focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr key={row.id} className="hover:bg-white/10 transition">
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className="text-center px-4 py-3">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center mt-6 text-sm">
+        <div className="text-purple-300">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+            className="px-3 py-1 rounded-md bg-purple-500/30 text-white hover:bg-purple-500/50 disabled:opacity-40"
+          >
+            {"<<"}
+          </button>
+          <button
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="px-3 py-1 rounded-md bg-purple-500/30 text-white hover:bg-purple-500/50 disabled:opacity-40"
+          >
+            {"<"}
+          </button>
+          <button
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="px-3 py-1 rounded-md bg-purple-500/30 text-white hover:bg-purple-500/50 disabled:opacity-40"
+          >
+            {">"}
+          </button>
+          <button
+            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            disabled={!table.getCanNextPage()}
+            className="px-3 py-1 rounded-md bg-purple-500/30 text-white hover:bg-purple-500/50 disabled:opacity-40"
+          >
+            {">>"}
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 };
